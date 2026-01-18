@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wordle Solver Logic</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            // Catppuccin Macchiato (Dark)
+            ctp: {
+              base: '#24273a',
+              surface0: '#36394e',
+              surface1: '#494d64',
+              text: '#cad3f5',
+              subtext0: '#a5adcb',
+              blue: '#8aadf4',
+              red: '#ed8796',
+              green: '#a6da95',
+              yellow: '#eed49f',
+              crust: '#181926'
+            },
+            // Catppuccin Latte (Light)
+            latte: {
+              base: '#eff1f5',
+              surface0: '#ccd0da',
+              surface1: '#bcc0cc',
+              text: '#4c4f69',
+              subtext0: '#6c6f85',
+              blue: '#1e66f5',
+              red: '#d20f39',
+              green: '#40a02b',
+              yellow: '#df8e1d',
+              crust: '#dce0e8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .letter-input {
+      text-transform: lowercase;
+      font-family: monospace;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    /* Latte Scrollbar */
+    ::-webkit-scrollbar-thumb {
+      background: #bcc0cc;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #acb0be;
+    }
+
+    /* Macchiato Scrollbar */
+    .dark ::-webkit-scrollbar-thumb {
+      background: #494d64;
+    }
+
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background: #5b6078;
+    }
+
+    .transition-theme {
+      transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+    }
+  </style>
+</head>
+
+<body class="bg-latte-crust dark:bg-ctp-crust min-h-screen p-4 md:p-8 transition-theme">
+  <div
+    class="max-w-2xl mx-auto bg-latte-base dark:bg-ctp-base rounded-xl shadow-lg overflow-hidden border border-latte-surface1 dark:border-ctp-surface1 transition-theme">
+    <div
+      class="p-6 border-b border-latte-surface0 dark:border-ctp-surface1 bg-latte-surface0 dark:bg-ctp-surface0 flex justify-between items-center transition-theme">
+      <div>
+        <h1 class="text-2xl font-bold text-latte-text dark:text-ctp-text">Wordle Logic Solver</h1>
+        <p class="text-xs text-latte-subtext0 dark:text-ctp-subtext0">Latte / Macchiato Theme</p>
+      </div>
+      <button id="themeToggle"
+        class="p-2 px-4 rounded-lg bg-latte-surface1 dark:bg-ctp-surface1 text-latte-text dark:text-ctp-text hover:opacity-80 transition-all font-medium shadow-sm">
+        <span class="dark:hidden">🌙 Dark Mode</span>
+        <span class="hidden dark:inline">☀️ Light Mode</span>
+      </button>
+    </div>
+
+    <div class="p-6 space-y-6">
+      <!-- Banned Letters -->
+      <div>
+        <label class="block text-sm font-semibold text-latte-text dark:text-ctp-subtext0 mb-2">Banned
+          Letters</label>
+        <input type="text" id="banInput" value=""
+          class="w-full p-3 border border-latte-surface1 dark:border-ctp-surface1 rounded-lg focus:ring-2 focus:ring-latte-blue dark:focus:ring-ctp-blue outline-none letter-input tracking-widest bg-latte-base dark:bg-ctp-surface0 text-latte-text dark:text-ctp-text transition-theme"
+          placeholder="e.g. abcde">
+      </div>
+
+      <!-- Constraints -->
+      <div>
+        <div class="flex justify-between items-center mb-2">
+          <label class="block text-sm font-semibold text-latte-text dark:text-ctp-subtext0">Positional
+            Constraints</label>
+          <button id="addConstraintBtn"
+            class="text-xs bg-latte-blue dark:bg-ctp-blue text-latte-base dark:text-ctp-base px-3 py-1 rounded hover:opacity-90 transition font-bold shadow-sm">
+            + Add Letter
+          </button>
+        </div>
+        <p class="text-xs text-latte-subtext0 dark:text-ctp-subtext0 mb-4">Rule format: 5 characters. Use <span
+            class="font-mono bg-latte-surface1 dark:bg-ctp-surface1 px-1 rounded text-latte-text dark:text-ctp-text">g</span>
+          for green, <span
+            class="font-mono bg-latte-surface1 dark:bg-ctp-surface1 px-1 rounded text-latte-text dark:text-ctp-text">y</span>
+          for yellow, <span
+            class="font-mono bg-latte-surface1 dark:bg-ctp-surface1 px-1 rounded text-latte-text dark:text-ctp-text">.</span>
+          for any.</p>
+
+        <div id="constraintsList" class="space-y-3"></div>
+      </div>
+
+      <!-- Results Section -->
+      <div class="pt-6 border-t border-latte-surface1 dark:border-ctp-surface1">
+        <div class="flex justify-between items-end mb-4">
+          <h2 class="text-lg font-bold text-latte-text dark:text-ctp-text" id="resultCount">0 words found</h2>
+          <div id="loadingSpinner" class="hidden text-latte-blue dark:text-ctp-blue text-sm animate-pulse font-medium">
+            Fetching
+            Wordlist...</div>
+        </div>
+
+        <div id="resultsGrid"
+          class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 max-h-[300px] overflow-y-auto p-2 bg-latte-crust dark:bg-ctp-crust rounded-lg border border-latte-surface1 dark:border-ctp-surface1 transition-theme">
+          <!-- Words appear here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const WORD_LIST_URL = 'https://gist.githubusercontent.com/dracos/dd0668f281e685bad51479e5acaadb93/raw/6bfa15d263d6d5b63840a8e5b64e04b382fdb079/valid-wordle-words.txt';
+    let allWords = [];
+
+    // UI Selectors
+    const banInput = document.getElementById('banInput');
+    const constraintsList = document.getElementById('constraintsList');
+    const addConstraintBtn = document.getElementById('addConstraintBtn');
+    const resultsGrid = document.getElementById('resultsGrid');
+    const resultCount = document.getElementById('resultCount');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const themeToggle = document.getElementById('themeToggle');
+
+    // Theme Toggle Logic
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.classList.add('dark');
+    }
+
+    themeToggle.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+    });
+
+    // Fetch official word list
+    async function fetchWords() {
+      loadingSpinner.classList.remove('hidden');
+      try {
+        const response = await fetch(WORD_LIST_URL);
+        const text = await response.text();
+        allWords = text.split('\n')
+          .map(w => w.trim().toLowerCase())
+          .filter(w => w.length === 5);
+        runSolver();
+      } catch (error) {
+        console.error('Failed to fetch words:', error);
+        resultCount.innerText = "Error loading word list.";
+      } finally {
+        loadingSpinner.classList.add('hidden');
+      }
+    }
+
+    function runSolver() {
+      if (allWords.length === 0) return;
+
+      const ban = banInput.value.toLowerCase();
+      const rows = document.querySelectorAll('.constraint-row');
+
+      const constraints = [];
+      rows.forEach(row => {
+        const charInput = row.querySelector('.char-val');
+        const ruleInput = row.querySelector('.rule-val');
+        const char = charInput.value.toLowerCase();
+        const rules = ruleInput.value.toLowerCase();
+        if (char && rules.length === 5) {
+          constraints.push({ char, rules });
+        }
+      });
+
+      const filtered = allWords.filter(word => {
+        let bad = false;
+        let ok = new Set();
+
+        for (let i = 0; i < 5; i++) {
+          const ch = word[i];
+          if (ban.includes(ch)) {
+            bad = true;
+          }
+
+          constraints.forEach(con => {
+            if (con.rules[i] === 'g' && ch !== con.char) bad = true;
+            if (con.rules[i] === 'y' && ch === con.char) bad = true;
+            if (con.rules[i] !== 'y' && ch === con.char) ok.add(con.char);
+          });
+        }
+
+        return !bad && ok.size >= constraints.length;
+      });
+
+      renderResults(filtered);
+    }
+
+    function renderResults(words) {
+      resultsGrid.innerHTML = '';
+      resultCount.innerText = `${words.length} word${words.length === 1 ? '' : 's'} found`;
+
+      words.forEach(word => {
+        const div = document.createElement('div');
+        div.className = 'bg-latte-base dark:bg-ctp-surface0 border border-latte-surface1 dark:border-ctp-surface1 text-center py-2 rounded font-mono font-bold text-latte-text dark:text-ctp-text shadow-sm transition-theme';
+        div.textContent = word;
+        resultsGrid.appendChild(div);
+      });
+
+      if (words.length === 0) {
+        resultsGrid.innerHTML = '<div class="col-span-full text-center py-8 text-latte-subtext0 dark:text-ctp-subtext0 italic">No matches found...</div>';
+      }
+    }
+
+    banInput.addEventListener('input', runSolver);
+    constraintsList.addEventListener('input', (e) => {
+      if (e.target.classList.contains('char-val') || e.target.classList.contains('rule-val')) {
+        runSolver();
+      }
+    });
+
+    addConstraintBtn.addEventListener('click', () => {
+      const div = document.createElement('div');
+      div.className = 'constraint-row flex gap-2 items-center';
+      div.innerHTML = `
+                <input type="text" maxlength="1" class="char-val w-12 p-2 border border-latte-surface1 dark:border-ctp-surface1 rounded text-center font-bold uppercase bg-latte-base dark:bg-ctp-surface0 text-latte-text dark:text-ctp-text transition-theme" placeholder="?">
+                <input type="text" maxlength="5" class="rule-val flex-1 p-2 border border-latte-surface1 dark:border-ctp-surface1 rounded font-mono tracking-widest text-center bg-latte-base dark:bg-ctp-surface0 text-latte-text dark:text-ctp-text transition-theme" value=".....">
+                <button onclick="this.parentElement.remove(); runSolver()" class="text-latte-red dark:text-ctp-red hover:bg-latte-surface1 dark:hover:bg-ctp-surface1 p-2 rounded transition">✕</button>
+            `;
+      constraintsList.appendChild(div);
+    });
+
+    fetchWords();
+  </script>
+</body>
+
+</html>
